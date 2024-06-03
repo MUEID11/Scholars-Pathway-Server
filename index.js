@@ -26,10 +26,17 @@ async function run() {
     // await client.connect();
     const database = client.db("scholar");
     const reviewsCollection = database.collection("reviews");
+    const usersCollection = database.collection("users");
+    //user related apis
+    app.post ('/user', async(req, res) => {
+      const user = req.body;
+      const result = await usersCollection.insertOne(user);
+      res.send(result)
+    })
+    //client side apis
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
-      console.log(result)
     });
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
