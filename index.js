@@ -55,7 +55,7 @@ async function run() {
         next();
       });
     }; 
-    //verify admin
+    //verify admin has to be on a same middleware
     const verifyAdmin = async(req, res, next) => {
       const email = req.decoded.email;
       const query = {email: email};
@@ -66,7 +66,7 @@ async function run() {
       }
       next();
     }
-    //verify moderator
+    //verify moderator has to be on a same middleware
     const verifyModerator = async(req, res, next) =>{
       const email = req.decoded.email;
       const query = {email: email};
