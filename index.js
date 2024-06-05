@@ -54,30 +54,38 @@ async function run() {
         req.decoded = decoded;
         next();
       });
-    }; 
+    };
     //verify admin has to be on a same middleware
-    const verifyAdmin = async(req, res, next) => {
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email};
+      const query = { email: email };
       const user = await usersCollection.findOne(query);
-      const isAdmin = user?.role  === "Admin";
-      if(!isAdmin){
-        return res.status(403).send({message: 'forbidden access'});
+      const isAdmin = user?.role === "Admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
       }
       next();
-    }
+    };
     //verify moderator has to be on a same middleware
-    const verifyModerator = async(req, res, next) =>{
+    const verifyAdminOrModerator = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email};
+      const query = { email: email };
       const user = await usersCollection.findOne(query);
-      const isModerator = user.role === 'Moderator'
-      if(!isModerator){
-        return res.satus(403).send({message: 'Forbidden Access'});
 
+      if (!user) {
+        return res.status(403).send({ message: "forbidden access" });
       }
+
+      const isAdminOrModerator =
+        user.role === "Admin" || user.role === "Moderator";
+
+      if (!isAdminOrModerator) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
       next();
-    }
+    };
+
     //user related apis
     //checking isAdmin or not
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
@@ -116,20 +124,42 @@ async function run() {
         return res.send({ message: "user already in DB", isertedId: null });
       }
       const result = await usersCollection.insertOne(user);
-      console.log(result, "consoling result");
       res.send(result);
     });
-    app.get("/users", verifyToken,verifyAdmin, async (req, res) => {
-      const result = await usersCollection.find().toArray();
+    //user profile unprotected api
+    app.get("/profile/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "unautorized access" });
+      }
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      console.log(result);
       res.send(result);
     });
-    app.delete("/users/:id", verifyToken,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyToken, verifyAdminOrModerator, async (req, res) => {
+      const { current, pageSize } = req.query;
+      const page = Number(current) - 1;
+      const limit = Number(pageSize);
+      const skip = page * limit;
+
+      const total = await usersCollection.countDocuments();
+      const result = await usersCollection
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      res.send({ result, total });
+    });
+
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
-    app.patch("/users/admin", verifyToken,verifyAdmin, async (req, res) => {
+    app.patch("/users/admin", verifyToken, verifyAdmin, async (req, res) => {
       const { id, role } = req.query;
       console.log(id, role);
       const filter = { _id: new ObjectId(id) };
