@@ -172,6 +172,7 @@ async function run() {
       res.send(result);
     });
     //client side apis
+    //adding scholarship
     app.post(
       "/scholarship",
       verifyToken,
@@ -183,6 +184,11 @@ async function run() {
         res.send(result);
       }
     );
+    //get scholarship data
+    app.get('/scholarships', async(req, res) => {
+      const result = await scholarshipCollection.find().toArray();
+      res.send(result);
+    })
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
