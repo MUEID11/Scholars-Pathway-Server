@@ -28,7 +28,7 @@ async function run() {
     const database = client.db("scholar");
     const reviewsCollection = database.collection("reviews");
     const usersCollection = database.collection("allusers");
-
+    const scholarshipCollection = database.collection("scholarship");
     //jwt token
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -115,7 +115,7 @@ async function run() {
       }
       res.send({ moderator });
     });
-
+    // adding user with registration or google sign in
     app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
@@ -172,6 +172,17 @@ async function run() {
       res.send(result);
     });
     //client side apis
+    app.post(
+      "/scholarship",
+      verifyToken,
+      verifyAdminOrModerator,
+      async (req, res) => {
+        const scholarshipData = req.body;
+        console.log(scholarshipData)
+        const result = await scholarshipCollection.insertOne(scholarshipData);
+        res.send(result);
+      }
+    );
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
