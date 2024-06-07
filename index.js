@@ -39,7 +39,7 @@ async function run() {
     });
     //middleware
     const verifyToken = (req, res, next) => {
-      console.log("verify token from middleware", req.headers.authorization);
+      // console.log("verify token from middleware", req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "Forbidden access" });
       }
@@ -88,12 +88,8 @@ async function run() {
 
     //user related apis
     //checking isAdmin or not
-    app.get("/users/admin/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "unauthorized access" });
-      }
-      const query = { email: email };
+    app.get("/users/admin", verifyToken, async (req, res) => {
+      const query = { email: req.decoded.email };
       const user = await usersCollection.findOne(query);
       let admin = false;
       if (user) {
@@ -102,12 +98,8 @@ async function run() {
       res.send({ admin });
     });
     //checking is moderator or not
-    app.get("/users/moderator/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "unauthorized access" });
-      }
-      const query = { email: email };
+    app.get("/users/moderator", verifyToken, async (req, res) => {
+      const query = { email: req.decoded.email };
       const user = await usersCollection.findOne(query);
       let moderator = false;
       if (user) {
@@ -134,7 +126,6 @@ async function run() {
       }
       const query = { email: email };
       const result = await usersCollection.findOne(query);
-      console.log(result);
       res.send(result);
     });
     app.get("/users", verifyToken, verifyAdminOrModerator, async (req, res) => {
@@ -161,7 +152,6 @@ async function run() {
     });
     app.patch("/users/admin", verifyToken, verifyAdmin, async (req, res) => {
       const { id, role } = req.query;
-      console.log(id, role);
       const filter = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
@@ -179,20 +169,40 @@ async function run() {
       verifyAdminOrModerator,
       async (req, res) => {
         const scholarshipData = req.body;
-        console.log(scholarshipData);
+
         const result = await scholarshipCollection.insertOne(scholarshipData);
         res.send(result);
       }
     );
     //get scholarship data
     app.get("/scholarships", async (req, res) => {
-      const {current, pageSize} = req.query;
-      const page = Number(current) -1;
-      const limit = Number(pageSize);
-      const skip = page * limit;
-      const total = await scholarshipCollection.countDocuments();
-      const result = await scholarshipCollection.find().skip(skip).limit(limit).toArray();
-      res.send({result, total});
+      try {
+        // Extract the current page and page size from the query parameters
+        const { current, pageSize } = req.query;
+
+        // Calculate the pagination variables
+        const page = Number(current) - 1; // Zero-based index for MongoDB
+        const limit = Number(pageSize);
+        const skip = page * limit;
+
+        // Get the total number of documents
+        const total = await scholarshipCollection.countDocuments();
+
+        // Fetch the paginated results
+        const result = await scholarshipCollection
+          .find()
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        // Send the results and total count to the client
+        res.send({ result, total });
+      } catch (error) {
+        // Handle any errors that occur
+        res
+          .status(500)
+          .send({ error: "An error occurred while fetching scholarships." });
+      }
     });
     app.get("/scholarship/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
@@ -200,6 +210,44 @@ async function run() {
       const result = await scholarshipCollection.findOne(query);
       res.send(result);
     });
+    //delete scholarship
+    app.delete(
+      "/deletescholarship/:id",
+      verifyToken,
+      verifyAdminOrModerator,
+      async (req, res) => {
+        const id = req.params.id;
+        console.log(id);
+        const query = { _id: new ObjectId(id) };
+        const result = await scholarshipCollection.deleteOne(query);
+        res.send(result);
+      }
+    );
+    //update scholarship
+    app.patch(
+      "/updatescholarship/:id",
+      verifyToken,
+      verifyAdminOrModerator,
+      async (req, res) => {
+        const id = req.params.id;
+        const formData = req.body;
+
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const updatedDoc = {
+          $set: {
+            ...formData,
+          },
+        };
+        const result = await scholarshipCollection.updateOne(
+          filter,
+          updatedDoc,
+          options
+        );
+        console.log(result);
+        res.send(result);
+      }
+    );
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
