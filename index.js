@@ -189,6 +189,12 @@ async function run() {
       const result = await scholarshipCollection.find().toArray();
       res.send(result);
     })
+    app.get('/scholarship/:id',verifyToken, async(req, res) => {
+      const id = req.params.id;
+      const query = {id: new ObjectId(id)};
+      const result = await scholarshipCollection.findOne(query).toArray();
+      res.send(result);
+    })
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
