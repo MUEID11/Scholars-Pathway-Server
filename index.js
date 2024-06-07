@@ -179,22 +179,27 @@ async function run() {
       verifyAdminOrModerator,
       async (req, res) => {
         const scholarshipData = req.body;
-        console.log(scholarshipData)
+        console.log(scholarshipData);
         const result = await scholarshipCollection.insertOne(scholarshipData);
         res.send(result);
       }
     );
     //get scholarship data
-    app.get('/scholarships', async(req, res) => {
-      const result = await scholarshipCollection.find().toArray();
-      res.send(result);
-    })
-    app.get('/scholarship/:id',verifyToken, async(req, res) => {
+    app.get("/scholarships", async (req, res) => {
+      const {current, pageSize} = req.query;
+      const page = Number(current) -1;
+      const limit = Number(pageSize);
+      const skip = page * limit;
+      const total = await scholarshipCollection.countDocuments();
+      const result = await scholarshipCollection.find().skip(skip).limit(limit).toArray();
+      res.send({result, total});
+    });
+    app.get("/scholarship/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = {id: new ObjectId(id)};
-      const result = await scholarshipCollection.findOne(query).toArray();
+      const query = { _id: new ObjectId(id) };
+      const result = await scholarshipCollection.findOne(query);
       res.send(result);
-    })
+    });
     app.get("/reviews", async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
