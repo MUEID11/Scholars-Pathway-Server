@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.SECRET_TEST_KEY);
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
@@ -252,6 +253,30 @@ async function run() {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
     });
+    //payment intent
+    app.post("/create-payment-intent", async (req, res) => {
+      try {
+        const { price } = req.body;
+        if (!price || isNaN(price)) {
+          return res.status(400).send({ error: "Invalid price" });
+        }
+
+        const amount = parseInt(price * 100);
+        console.log(`Creating payment intent for amount: ${amount}`);
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({ clientSecret: paymentIntent.client_secret });
+      } catch (error) {
+        console.error("Error creating payment intent:", error);
+        res.status(500).send({ error: "Failed to create payment intent" });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     console.log(
