@@ -30,6 +30,7 @@ async function run() {
     const reviewsCollection = database.collection("reviews");
     const usersCollection = database.collection("allusers");
     const scholarshipCollection = database.collection("scholarship");
+    const appliedCollection = database.collection('appliedCollection')
     //jwt token
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -276,6 +277,26 @@ async function run() {
         res.status(500).send({ error: "Failed to create payment intent" });
       }
     });
+    //applied collection
+    app.post('/applied', verifyToken, async (req, res) => {
+      const appliedScholarship = req.body;
+      try {
+          const result = await appliedCollection.insertOne(appliedScholarship);
+  
+          const id = appliedScholarship?.scholarshipId;
+          const query = { _id: new ObjectId(id) }; 
+          const updateDoc = {
+              $inc: { appliedCount: 1 } // Increment appliedCount by 1
+          };
+          // Update the appliedCount in the scholarshipCollection
+          const updateCount = await scholarshipCollection.updateOne(query, updateDoc);
+          // Send the result back to the client
+          res.send({result, updateCount});
+      } catch (error) {
+          console.error('Error applying for scholarship:', error);
+          res.status(500).send({ message: 'Failed to apply for scholarship' });
+      }
+  });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
