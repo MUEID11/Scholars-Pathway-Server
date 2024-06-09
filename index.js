@@ -131,19 +131,27 @@ async function run() {
       res.send(result);
     });
     app.get("/users", verifyToken, verifyAdminOrModerator, async (req, res) => {
-      const { current, pageSize } = req.query;
-      const page = Number(current) - 1;
-      const limit = Number(pageSize);
-      const skip = page * limit;
-
-      const total = await usersCollection.countDocuments();
-      const result = await usersCollection
-        .find()
-        .skip(skip)
-        .limit(limit)
-        .toArray();
-
-      res.send({ result, total });
+      try {
+        const { current, pageSize, role } = req.query;
+        const page = Number(current) - 1;
+        const limit = Number(pageSize);
+        const skip = page * limit;
+        let query = {};
+        if (role) {
+          query = { role }; // Filter by role if provided
+        }
+        const total = await usersCollection.countDocuments(query);
+        const result = await usersCollection
+          .find(query)
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+        res.send({ result, total });
+      } catch (error) {
+        res
+          .status(500)
+          .send({ error: "An error occurred while fetching users." });
+      }
     });
 
     app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
@@ -179,20 +187,19 @@ async function run() {
     //get scholarship data
     app.get("/scholarships", async (req, res) => {
       try {
-        // Extract the current page and page size from the query parameters
-        const { current, pageSize } = req.query;
 
-        // Calculate the pagination variables
+        const { current, pageSize, sortBy, sortOrder } = req.query;
         const page = Number(current) - 1; // Zero-based index for MongoDB
         const limit = Number(pageSize);
         const skip = page * limit;
-
-        // Get the total number of documents
         const total = await scholarshipCollection.countDocuments();
-
-        // Fetch the paginated results
+        let sortCriteria = {};
+        if (sortBy) {
+          sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
+        }
         const result = await scholarshipCollection
           .find()
+          .sort(sortCriteria)
           .skip(skip)
           .limit(limit)
           .toArray();
@@ -206,6 +213,21 @@ async function run() {
           .send({ error: "An error occurred while fetching scholarships." });
       }
     });
+    //get top scholarships
+    app.get("/topscholarships", async (req, res) => {
+      try {
+        const sortedScholarships = await scholarshipCollection
+          .find()
+          .sort({ applicationFees: 1 })
+          .toArray();
+        res.send(sortedScholarships);
+      } catch (error) {
+        res.status(500).send({
+          error: "An error occurred while fetching top scholarships.",
+        });
+      }
+    });
+
     app.get("/scholarship/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -306,23 +328,38 @@ async function run() {
       verifyToken,
       verifyAdminOrModerator,
       async (req, res) => {
-        try{
-          const { current, pageSize } = req.query;
-        const page = Number(current) - 1;
-        const limit = Number(pageSize);
-        const skip = page * limit;
-        const total = await appliedCollection.countDocuments();
-        const result = await appliedCollection
-          .find()
-          .skip(skip)
-          .limit(limit)
-          .toArray();
-        res.send({ result, total });
-        }catch(error){
-          console.log(error)
+        try {
+          const { current, pageSize, sortBy, sortOrder } = req.query;
+          const page = Number(current) - 1;
+          const limit = Number(pageSize);
+          const skip = page * limit;
+
+          // Handle sorting by date
+          let sortQuery = {};
+          if (sortBy && sortOrder) {
+            sortQuery[sortBy] = sortOrder === "asc" ? 1 : -1;
+          } else {
+            sortQuery["date"] = -1; // Default sorting by date in descending order
+          }
+
+          const total = await appliedCollection.countDocuments();
+          const result = await appliedCollection
+            .find()
+            .sort(sortQuery) // Apply sorting
+            .skip(skip)
+            .limit(limit)
+            .toArray();
+
+          res.send({ result, total });
+        } catch (error) {
+          console.error("Error fetching applied applications:", error);
+          res.status(500).send({
+            error: "An error occurred while fetching applied applications.",
+          });
         }
       }
     );
+
     //my application route api
     app.get("/applied", verifyToken, async (req, res) => {
       const { current, pageSize } = req.query;
@@ -342,6 +379,36 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "An error occurred", error });
       }
+    });
+    //update applied application
+    app.patch("/updateapplied/:id", verifyToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const appliedData = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const updatedDoc = {
+          $set: { ...appliedData },
+        };
+        const result = await appliedCollection.updateOne(
+          filter,
+          updatedDoc,
+          options
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating document:", error);
+        res.status(500).send({ message: "Failed to update the document" });
+      }
+    });
+    //edit application data
+
+    //find a single applied application
+    app.get("/application/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await appliedCollection.findOne(query);
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
