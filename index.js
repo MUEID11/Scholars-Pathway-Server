@@ -30,7 +30,7 @@ async function run() {
     const reviewsCollection = database.collection("reviews");
     const usersCollection = database.collection("allusers");
     const scholarshipCollection = database.collection("scholarship");
-    const appliedCollection = database.collection('appliedCollection')
+    const appliedCollection = database.collection("appliedCollection");
     //jwt token
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -255,7 +255,7 @@ async function run() {
       res.send(result);
     });
     //payment intent
-    app.post("/create-payment-intent", async (req, res) => {
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
       try {
         const { price } = req.body;
         if (!price || isNaN(price)) {
@@ -278,25 +278,71 @@ async function run() {
       }
     });
     //applied collection
-    app.post('/applied', verifyToken, async (req, res) => {
+    app.post("/applied", verifyToken, async (req, res) => {
       const appliedScholarship = req.body;
       try {
-          const result = await appliedCollection.insertOne(appliedScholarship);
-  
-          const id = appliedScholarship?.scholarshipId;
-          const query = { _id: new ObjectId(id) }; 
-          const updateDoc = {
-              $inc: { appliedCount: 1 } // Increment appliedCount by 1
-          };
-          // Update the appliedCount in the scholarshipCollection
-          const updateCount = await scholarshipCollection.updateOne(query, updateDoc);
-          // Send the result back to the client
-          res.send({result, updateCount});
+        const result = await appliedCollection.insertOne(appliedScholarship);
+
+        const id = appliedScholarship?.scholarshipId;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $inc: { appliedCount: 1 }, // Increment appliedCount by 1
+        };
+        // Update the appliedCount in the scholarshipCollection
+        const updateCount = await scholarshipCollection.updateOne(
+          query,
+          updateDoc
+        );
+        // Send the result back to the client
+        res.send({ result, updateCount });
       } catch (error) {
-          console.error('Error applying for scholarship:', error);
-          res.status(500).send({ message: 'Failed to apply for scholarship' });
+        console.error("Error applying for scholarship:", error);
+        res.status(500).send({ message: "Failed to apply for scholarship" });
       }
-  });
+    });
+    //get all applied application for managing application
+    app.get(
+      "/allapplied",
+      verifyToken,
+      verifyAdminOrModerator,
+      async (req, res) => {
+        try{
+          const { current, pageSize } = req.query;
+        const page = Number(current) - 1;
+        const limit = Number(pageSize);
+        const skip = page * limit;
+        const total = await appliedCollection.countDocuments();
+        const result = await appliedCollection
+          .find()
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+        res.send({ result, total });
+        }catch(error){
+          console.log(error)
+        }
+      }
+    );
+    //my application route api
+    app.get("/applied", verifyToken, async (req, res) => {
+      const { current, pageSize } = req.query;
+      const page = Number(current) - 1;
+      const limit = Number(pageSize);
+      const skip = page * limit;
+      const query = { applicantEmail: req.decoded.email }; // Extracted from the token by verifyToken
+
+      try {
+        const total = await appliedCollection.countDocuments(query); // Use the query object here
+        const result = await appliedCollection
+          .find(query)
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+        res.send({ result, total });
+      } catch (error) {
+        res.status(500).send({ message: "An error occurred", error });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
