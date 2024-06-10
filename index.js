@@ -8,7 +8,15 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 
 //middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://b9-assignment11.web.app",
+      "https://b9-assignment11.firebaseapp.com",
+    ]
+  })
+);
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.i7qzqrj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -230,6 +238,7 @@ async function run() {
         const sortedScholarships = await scholarshipCollection
           .find()
           .sort({ applicationFees: 1 })
+          .limit(6)
           .toArray();
         res.send(sortedScholarships);
       } catch (error) {
@@ -368,7 +377,16 @@ async function run() {
         }
       }
     );
-
+    //api for charts
+    app.get("/stats", verifyToken, verifyAdmin, async (req, res) => {
+      const numberOfuser = await usersCollection.countDocuments();
+      const numberOfapplication = await appliedCollection.countDocuments();
+      const data = [
+        { name: "users", value: numberOfuser },
+        { name: "applications", value: numberOfapplication },
+      ];
+      res.send(data);
+    });
     //my application route api
     app.get("/applied", verifyToken, async (req, res) => {
       const { current, pageSize } = req.query;
