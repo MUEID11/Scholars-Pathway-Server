@@ -187,32 +187,43 @@ async function run() {
     //get scholarship data
     app.get("/scholarships", async (req, res) => {
       try {
-
-        const { current, pageSize, sortBy, sortOrder } = req.query;
+        const { current, pageSize, sortBy, sortOrder, searchText } = req.query;
         const page = Number(current) - 1; // Zero-based index for MongoDB
         const limit = Number(pageSize);
         const skip = page * limit;
-        const total = await scholarshipCollection.countDocuments();
+        // Create a filter object based on searchText
+        let filter = {};
+        if (searchText) {
+          filter = {
+            $or: [
+              { scholarshipName: { $regex: searchText, $options: "i" } },
+              { universityName: { $regex: searchText, $options: "i" } },
+            ],
+          };
+        }
+        // Get the total count of documents matching the filter
+        const total = await scholarshipCollection.countDocuments(filter);
+
+        // Create sort criteria if sorting is requested
         let sortCriteria = {};
         if (sortBy) {
           sortCriteria[sortBy] = sortOrder === "desc" ? -1 : 1;
         }
+        // Fetch the filtered, sorted, and paginated results from the database
         const result = await scholarshipCollection
-          .find()
+          .find(filter)
           .sort(sortCriteria)
           .skip(skip)
           .limit(limit)
           .toArray();
-
-        // Send the results and total count to the client
         res.send({ result, total });
       } catch (error) {
-        // Handle any errors that occur
         res
           .status(500)
           .send({ error: "An error occurred while fetching scholarships." });
       }
     });
+
     //get top scholarships
     app.get("/topscholarships", async (req, res) => {
       try {
@@ -231,8 +242,9 @@ async function run() {
     app.get("/scholarship/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
+      const total = await scholarshipCollection.countDocuments();
       const result = await scholarshipCollection.findOne(query);
-      res.send(result);
+      res.send({ result, total });
     });
     //delete scholarship
     app.delete(
@@ -272,10 +284,7 @@ async function run() {
         res.send(result);
       }
     );
-    app.get("/reviews", async (req, res) => {
-      const result = await reviewsCollection.find().toArray();
-      res.send(result);
-    });
+
     //payment intent
     app.post("/create-payment-intent", verifyToken, async (req, res) => {
       try {
@@ -410,7 +419,79 @@ async function run() {
       const result = await appliedCollection.findOne(query);
       res.send(result);
     });
+    //reviewss
+    app.get("/reviews", async (req, res) => {
+      // Get pagination parameters from the query string
+      const current = parseInt(req.query.current) || 1;
+      const pageSize = parseInt(req.query.pageSize) || 10;
+      try {
+        const total = await reviewsCollection.countDocuments();
+        const skip = (current - 1) * pageSize;
+        const result = await reviewsCollection
+          .find()
+          .skip(skip)
+          .limit(pageSize)
+          .toArray();
+        res.send({ total, result });
+      } catch (error) {
+        res.status(500).send({ error: "Error fetching reviews" });
+      }
+    });
+    app.get("/scholarshipreviews/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { scholarshipId: id };
+      try {
+        const result = await reviewsCollection.find(query).toArray();
+        const avg = await reviewsCollection
+          .aggregate([
+            {
+              $match: { scholarshipId: id },
+            },
+            {
+              $group: {
+                _id: "$scholarshipId",
+                avg_rating: { $avg: "$rating" },
+              },
+            },
+          ])
+          .toArray();
+        res.send({ result, avg });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Error fetching review" });
+      }
+    });
 
+    //post reviews
+    app.post("/reviews", verifyToken, async (req, res) => {
+      const query = req.body;
+      const result = await reviewsCollection.insertOne(query);
+      res.send(result);
+    });
+    //get reviews by email
+    app.get("/reviews/:email", verifyToken, async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { applicantEmail: email };
+        const result = await reviewsCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ error: "Error fetching reviews" });
+      }
+    });
+    //delete review
+    app.delete(
+      "/deletereviews/:id",
+      verifyToken,
+      verifyAdminOrModerator,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await reviewsCollection.deleteOne(query);
+        res.send(result);
+      }
+    );
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     console.log(
